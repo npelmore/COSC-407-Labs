@@ -11,7 +11,7 @@
 int main(int argc, char *argv[]) {
 	int numThreads, tid;
 	/* This creates a team of threads; each thread has own copy of variables  */
-	#pragma omp parallel private(numThreads, tid)
+#pragma omp parallel private(numThreads, tid)
 	{
 		tid = omp_get_thread_num();
 		printf("Hello World from thread number %d\n", tid);
