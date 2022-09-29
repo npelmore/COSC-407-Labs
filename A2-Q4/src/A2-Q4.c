@@ -17,23 +17,29 @@ int main (int argc, char *argv[]) {
 	int* vecCreate (int size);
 	int* vecCreateOpenMP(int size, int num_thread);
 
-	//numThreads = 4;
 
 	start_t = clock();
 	int* A = vecCreate(size);
 	end_t = clock();
-
 	total_t = (double)(end_t - start_t);
 
-	printf("Using Serial Code\nv[%d] = %d\nTime: %1.2f ms\n\n", (sizeof(*A)/sizeof(A[0])) , size, total_t);
+	if(A!=NULL){
 
+	printf("Using Serial Code\nv[%d] = %d\nTime: %1.2f ms\n\n", size-1 , A[size-1], total_t);
+
+	}
 
 	start_t = clock();
 	int* B = vecCreateOpenMP(size,numThreads);
 	end_t = clock();
-
 	total_t = (double)(end_t - start_t);
 
+	if(B!=NULL){
+	printf("Using OpenMP with %d threads:\nv[%d] = %d\nTime: %1.2f ms\n\n", numThreads, size-1 , B[size-1], total_t);
+	}
+
+	free(A);
+	free(B);
 
 	return 0;
 }
@@ -42,7 +48,7 @@ int* vecCreate (int size){
 	int* A = malloc(size * sizeof(int));
 	if(A==NULL){
 		fprintf(stderr, "Not Enough Memory\n");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 
 	for(int i=0;i<size;i++){
@@ -61,13 +67,44 @@ int* vecCreateOpenMP(int size, int num_thread){
 	int* B = malloc(size * sizeof(int));
 	if(B==NULL){
 		fprintf(stderr, "Not Enough Memory\n");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 
 #pragma omp parallel num_threads(num_thread)
 	{
-
+		int id = omp_get_thread_num();
+		int sizeOfSection = size/num_thread;
+		int start = id * sizeOfSection;
+		int end = start + sizeOfSection;
+		for(int i=start;i<end;i++){
+			B[i]=i;
+		}
 	}
+	return B;
+
 }
+
+/*
+Successful:
+	Using Serial Code
+	v[49999999] = 49999999
+	Time: 101.00 ms
+
+	Using OpenMP with 4 threads:
+	v[49999999] = 49999999
+	Time: 61.00 ms
+
+num_thread not divisible by size:
+	Using Serial Code
+	v[49999999] = 49999999
+	Time: 82.00 ms
+
+	Error: number of threads must be divisible by vector size
+
+Unsuccessful memory allocation:
+	Not Enough Memory
+	Not Enough Memory
+ */
+
 
 
