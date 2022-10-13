@@ -12,6 +12,7 @@
 typedef enum {desaturate, negative} ImgProcessing ;
 
 /* Creates a negative image of the input bitmap file */
+
 int main() {
 	const char* inFile = "okanagan.bmp";
 	const char* outFile = "okanagan_processed.bmp";
