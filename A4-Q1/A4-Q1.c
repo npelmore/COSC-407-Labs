@@ -67,4 +67,4 @@ int main() {
 }
 
 // Would it be better to use nested parallel for loops?
-// No, it creates too much overhead and the image processing takes much longer to complete compared to non-nested parallel for loops
+	// No, it creates too much overhead and the image processing takes much longer to complete compared to non-nested parallel for loops
