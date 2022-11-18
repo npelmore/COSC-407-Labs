@@ -51,7 +51,7 @@ __device__ void convolution_8bits_parallel(const unsigned char* const image_in, 
 //	Constraints:- Both image_in and image_out are in RGBA format (32-bit pixels as uchar4)
 //				- Filter is a square matrix (float) and its width is odd number. The sum of all its values is 1 (normalized)
 
-__global__ void convolution_32bits_parallel( const uchar4* const image_in, uchar4 *const image_out, int height, int width, const float* const filter, const int filter_width, unsigned char* R_in, unsigned char* G_in, unsigned char* B_in, unsigned char* A_in, unsigned char* R_out, unsigned char* G_out, unsigned char* B_out, unsigned char* A_out){
+__global__ void convolution_32bits_parallel(const uchar4* const image_in, uchar4 *const image_out, int height, int width, const float* const filter, const int filter_width, unsigned char* R_in, unsigned char* G_in, unsigned char* B_in, unsigned char* A_in, unsigned char* R_out, unsigned char* G_out, unsigned char* B_out, unsigned char* A_out){
 	//break the input image (uchar4 matrix) into 4 channels (four char matrices): Red, Green, Blue, and Alpha
 
     int col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -59,29 +59,41 @@ __global__ void convolution_32bits_parallel( const uchar4* const image_in, uchar
 
     int i = row*width + col;
     
-    if (i < width*height){
-        uchar4 pxl = image_in[i];
-        R_in[i] = pxl.x;
-        G_in[i] = pxl.y;
-        B_in[i] = pxl.z;
-        A_in[i] = pxl.w;
+    // if (i < width*height){
+    //     uchar4 pxl = image_in[i];
+    //     R_in[i] = pxl.x;
+    //     G_in[i] = pxl.y;
+    //     B_in[i] = pxl.z;
+    //     A_in[i] = pxl.w;
         
-    }
-        //sync threads here
-        __syncthreads();
+    // }
+        
+	//perform 8-bit convolution for each 8-bit image channel 
+	convolution_8bits_parallel(R_in, R_out, height, width, filter, filter_width);
+	convolution_8bits_parallel(G_in, G_out, height, width, filter, filter_width);
+	convolution_8bits_parallel(B_in, B_out, height, width, filter, filter_width);
+	convolution_8bits_parallel(A_in, A_out, height, width, filter, filter_width);
 
-        //perform 8-bit convolution for each 8-bit image channel 
-        convolution_8bits_parallel(R_in, R_out, height, width, filter, filter_width);
-        convolution_8bits_parallel(G_in, G_out, height, width, filter, filter_width);
-        convolution_8bits_parallel(B_in, B_out, height, width, filter, filter_width);
-        convolution_8bits_parallel(A_in, A_out, height, width, filter, filter_width);
+	//merge the four channels into one output image of type uchar4
+	if (i < width*height)
+		image_out[i] = make_uchar4(R_out[i], G_out[i], B_out[i], A_out[i]);	
+}
 
-        __syncthreads();
+__global__ void rgba_initialize(const uchar4* const image_in, uchar4 *const image_out, int height, int width, const float* const filter, const int filter_width, unsigned char* R_in, unsigned char* G_in, unsigned char* B_in, unsigned char* A_in, unsigned char* R_out, unsigned char* G_out, unsigned char* B_out, unsigned char* A_out){
 
-        //merge the four channels into one output image of type uchar4
-        if (i < width*height)
-            image_out[i] = make_uchar4(R_out[i], G_out[i], B_out[i], A_out[i]);	
-    //}
+	int col = threadIdx.x + blockIdx.x * blockDim.x;
+	int row = threadIdx.y + blockIdx.y * blockDim.y;
+
+	int i = row*width + col;
+	
+	if (i < width*height){
+		uchar4 pxl = image_in[i];
+		R_in[i] = pxl.x;
+		G_in[i] = pxl.y;
+		B_in[i] = pxl.z;
+		A_in[i] = pxl.w;
+		
+	}
 }
 
 //****************************************************************************************************************
@@ -332,7 +344,10 @@ void parallel(){
 
     printf("Applying the convolution filter...\n");
 	int t = clock();
+	rgba_initialize<<<gridSize,blockSize>>>(device_image_in, device_image_out, height, width, device_filter, filter_width, dR_in, dG_in, dB_in, dA_in, dR_out, dG_out, dB_out, dA_out);
 	convolution_32bits_parallel<<<gridSize,blockSize>>>(device_image_in, device_image_out, height, width, device_filter, filter_width, dR_in, dG_in, dB_in, dA_in, dR_out, dG_out, dB_out, dA_out);	//filter applied to image_in, results saved in image_out
+	
+	
 	t = (clock() - t) * 1000 / CLOCKS_PER_SEC;
 	printf("Convolution filter applied. Time taken: %d.%d seconds\n", t / 1000, t % 1000);
 
