@@ -8,6 +8,8 @@
 
 #define MIN(x,y) (  (y) ^ (((x) ^ (y)) & -((x) < (y))) )
 #define MAX(x,y) (  (x) ^ (((x) ^ (y)) & -((x) < (y))) )
+#define CHK(call) { cudaError_t err = call; if (err != cudaSuccess) { printf("Error%d: %s:%d\n",err,__FILE__,__LINE__); printf(cudaGetErrorString(err)); cudaDeviceReset(); exit(1); }}
+
 
 //****************************************************************************************************************
 // PARALLEL FUNCTIONS
@@ -65,7 +67,6 @@ __global__ void convolution_32bits_parallel(const uchar4* const image_in, uchar4
     //     G_in[i] = pxl.y;
     //     B_in[i] = pxl.z;
     //     A_in[i] = pxl.w;
-        
     // }
         
 	//perform 8-bit convolution for each 8-bit image channel 
@@ -299,8 +300,8 @@ void parallel(){
 	printf("Filter loaded...\n");
 
     float* device_filter;
-    cudaMalloc(&device_filter, filter_width * filter_width * sizeof(float));
-    cudaMemcpy(device_filter, filter, filter_width * filter_width * sizeof(float), cudaMemcpyHostToDevice);
+    CHK( cudaMalloc(&device_filter, filter_width * filter_width * sizeof(float)) );
+    CHK( cudaMemcpy(device_filter, filter, filter_width * filter_width * sizeof(float), cudaMemcpyHostToDevice) );
 
 	//load input image
 	int width, height;
@@ -309,31 +310,31 @@ void parallel(){
 	printf("Input image loaded...\n");
 
     uchar4* device_image_in;
-    cudaMalloc(&device_image_in, width * height * sizeof(uchar4));
-    cudaMemcpy(device_image_in, image_in, width*height*sizeof(uchar4), cudaMemcpyHostToDevice); 
+    CHK( cudaMalloc(&device_image_in, width * height * sizeof(uchar4)) );
+    CHK( cudaMemcpy(device_image_in, image_in, width*height*sizeof(uchar4), cudaMemcpyHostToDevice) ); 
 
 	//apply convolution filter to input image
 	uchar4* image_out = (uchar4*)malloc(width*height*sizeof(uchar4));	//reserve space in the memory for the output image
 	uchar4* device_image_out;
-    cudaMalloc(&device_image_out, width * height * sizeof(uchar4));
+    CHK( cudaMalloc(&device_image_out, width * height * sizeof(uchar4)) );
 
     unsigned char* dR_in;
-    cudaMalloc(&dR_in, width * height);
+    CHK( cudaMalloc(&dR_in, width * height) );
     unsigned char* dG_in;
-    cudaMalloc(&dG_in, width * height);
+    CHK( cudaMalloc(&dG_in, width * height) );
     unsigned char* dB_in;
-    cudaMalloc(&dB_in, width * height);
+    CHK( cudaMalloc(&dB_in, width * height) );
     unsigned char* dA_in;
-    cudaMalloc(&dA_in, width * height);
+    CHK( cudaMalloc(&dA_in, width * height) );
 
     unsigned char* dR_out;
-    cudaMalloc(&dR_out, width * height);
+    CHK( cudaMalloc(&dR_out, width * height) );
     unsigned char* dG_out;
-    cudaMalloc(&dG_out, width * height);
+    CHK( cudaMalloc(&dG_out, width * height) );
     unsigned char* dB_out;
-    cudaMalloc(&dB_out, width * height);
+    CHK( cudaMalloc(&dB_out, width * height) );
     unsigned char* dA_out;
-    cudaMalloc(&dA_out, width * height);
+    CHK( cudaMalloc(&dA_out, width * height) );
 
     dim3 blockSize(32,32);
     int nBlocks_x = (width -1) / 32 +1;
@@ -345,16 +346,19 @@ void parallel(){
     printf("Applying the convolution filter...\n");
 	int t = clock();
 	rgba_initialize<<<gridSize,blockSize>>>(device_image_in, device_image_out, height, width, device_filter, filter_width, dR_in, dG_in, dB_in, dA_in, dR_out, dG_out, dB_out, dA_out);
+	CHK(cudaGetLastError()); 
+	CHK(cudaDeviceSynchronize());
+
 	convolution_32bits_parallel<<<gridSize,blockSize>>>(device_image_in, device_image_out, height, width, device_filter, filter_width, dR_in, dG_in, dB_in, dA_in, dR_out, dG_out, dB_out, dA_out);	//filter applied to image_in, results saved in image_out
-	
-	
+	CHK(cudaGetLastError()); 
+	CHK(cudaDeviceSynchronize());
+
+	cudaDeviceSynchronize();
 	t = (clock() - t) * 1000 / CLOCKS_PER_SEC;
+	
 	printf("Convolution filter applied. Time taken: %d.%d seconds\n", t / 1000, t % 1000);
 
-    //sync
-    cudaDeviceSynchronize();
-
-    cudaMemcpy(image_out, device_image_out, width*height*sizeof(uchar4), cudaMemcpyDeviceToHost); 
+    CHK( cudaMemcpy(image_out, device_image_out, width*height*sizeof(uchar4), cudaMemcpyDeviceToHost) ); 
 	
 	//save results to output image
 	writeBMP(image_out_name, image_out, width, height);
@@ -364,6 +368,20 @@ void parallel(){
 //MAIN: testing convolution with a blur filter
 int main(){
   checkForGPU();
-	//serial();
+	serial();
 	parallel();
 }
+
+
+// Filter loaded...
+// Input image loaded...
+// Applying the convolution filter...
+// Convolution filter applied. Time taken: 11.993 seconds
+// Output image saved.
+// Program finished!
+// Filter loaded...
+// Input image loaded...
+// Applying the convolution filter...
+// Convolution filter applied. Time taken: 0.7 seconds
+// Output image saved.
+// Program finished!
