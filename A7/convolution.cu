@@ -60,14 +60,6 @@ __global__ void convolution_32bits_parallel(const uchar4* const image_in, uchar4
     int row = threadIdx.y + blockIdx.y * blockDim.y;
 
     int i = row*width + col;
-    
-    // if (i < width*height){
-    //     uchar4 pxl = image_in[i];
-    //     R_in[i] = pxl.x;
-    //     G_in[i] = pxl.y;
-    //     B_in[i] = pxl.z;
-    //     A_in[i] = pxl.w;
-    // }
         
 	//perform 8-bit convolution for each 8-bit image channel 
 	convolution_8bits_parallel(R_in, R_out, height, width, filter, filter_width);
@@ -353,7 +345,6 @@ void parallel(){
 	CHK(cudaGetLastError()); 
 	CHK(cudaDeviceSynchronize());
 
-	cudaDeviceSynchronize();
 	t = (clock() - t) * 1000 / CLOCKS_PER_SEC;
 	
 	printf("Convolution filter applied. Time taken: %d.%d seconds\n", t / 1000, t % 1000);
@@ -363,6 +354,18 @@ void parallel(){
 	//save results to output image
 	writeBMP(image_out_name, image_out, width, height);
 	printf("Output image saved.\nProgram finished!\n");
+
+	cudaFree(device_filter); 
+	cudaFree(device_image_in);
+	cudaFree(device_image_out);
+	cudaFree(dR_in);
+	cudaFree(dG_in);
+	cudaFree(dB_in);
+	cudaFree(dA_in);
+	cudaFree(dR_out);
+	cudaFree(dG_out);
+	cudaFree(dB_out);
+	cudaFree(dA_out);
 }
 
 //MAIN: testing convolution with a blur filter
